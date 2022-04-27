@@ -1,29 +1,67 @@
 package fs.code;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.util.Scanner;
 
 public class FileSystemReader{
-    public static void main(String[] args) {
+
+    static String workingDir = "/";    
+    
+    public static void main(String[] args) throws FileNotFoundException {
+        if(args.length == 0){
+            throw new IllegalArgumentException("Please provide a file");
+        }
+        FileInputStream fis = new FileInputStream(new File(args[0]));
         Scanner cmdScanner = new Scanner(System.in);
+        String task;
+       
+        while(true){
+            System.out.println(workingDir + "]");
+            task = cmdScanner.next();
+            task.toLowerCase();
+            switch(task){
+                case "stop":
+                    return;
+                case "info":
+                    info();
+                    break;
+                case "ls" :
+                    ls(task);
+                    break;
+                case "stat":
+                    stat(cmdScanner.next());
+                    break;
+                case "size":
+                    size(cmdScanner.next());
+                    break;
+                case "cd":
+                    cd(cmdScanner.next());
+                    break;
+                case "read":
+                    read(cmdScanner.next(), cmdScanner.next(), cmdScanner.next());
+                    break;
+            }
+        }
+
+        
     }
-    public void stop(){
+    public static void info(){
 
     }
-    public void info(){
+    public static void ls(String dirName){
 
     }
-    public void ls(){
+    public static void stat(String fileNameDirName){
 
     }
-    public void stat(){
+    public static void size(String fileName){
 
     }
-    public void size(){
+    public static void cd(String dirName){
 
     }
-    public void cd(){
-
-    }
-    public void read(){
+    public static void read(String fileName, String offset, String numBytes){
 
     }
 }
