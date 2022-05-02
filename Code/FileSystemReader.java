@@ -1,18 +1,22 @@
 package fs.code;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 
+
 public class FileSystemReader{
 
-    static String workingDir = "/";    
+    static String workingDir = "/"; 
+    static byte[] FAT = new byte[516608];   
     
     public static void main(String[] args) throws FileNotFoundException {
         if(args.length == 0){
             throw new IllegalArgumentException("Please provide a file");
         }
-        FileInputStream fis = new FileInputStream(new File(args[0]));
+        BufferedInputStream fatBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
+        BufferedInputStream dataBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
         Scanner cmdScanner = new Scanner(System.in);
         String task;
        
@@ -62,6 +66,9 @@ public class FileSystemReader{
 
     }
     public static void read(String fileName, String offset, String numBytes){
+
+    }
+    private static boolean navigateFS(BufferedInputStream dataBis){
 
     }
 }
