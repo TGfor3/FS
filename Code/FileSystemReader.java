@@ -9,7 +9,8 @@ import java.util.Scanner;
 public class FileSystemReader{
 
     static String workingDir = "/"; 
-    static byte[] FAT = new byte[516608];   
+    static byte[] FAT = new byte[516608];  
+    static int bytePerSec; 
     
     public static void main(String[] args) throws FileNotFoundException {
         if(args.length == 0){
@@ -51,6 +52,8 @@ public class FileSystemReader{
         
     }
     public static void info(){
+
+
 
     }
     public static void ls(String dirName){
