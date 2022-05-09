@@ -3,6 +3,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Scanner;
 
 
@@ -63,18 +64,22 @@ public class FileSystemReader{
         
     }
 
-    private static void setGlobals(){
+    private static void setGlobals() throws IOException{
 
-        fatBis.mark(100000);
+        byte[] scrap = new byte[4];
 
-        fatBis.skip(11);
-        bytePerSec = fatBis.read(2);
+        fatBis.mark(-1);
+        fatBis.read(scrap, 11, 2);
         fatBis.reset(); 
-        FAT;  
-        secPerClus;
-        rsvdSecCnt;
-        numFats;
-        Fatsz32;
+        bytePerSec = (((int)scrap[1])<<8) | (((int)scrap[0]&0xFF));
+        scrap = new byte[4];
+        System.out.println(bytePerSec);
+
+        // FAT;  
+        // secPerClus;
+        // rsvdSecCnt;
+        // numFats;
+        // Fatsz32;
 
     }
 
@@ -87,7 +92,7 @@ public class FileSystemReader{
     public static void ls(String dirName){
 
     }
-    public static void stat(String fileNameDirName){
+    public static void stat(String fileNameDirName) throws IOException{
         //Should get to beginning of data section
         long dataStart = rsvdSecCnt + (bytePerSec * secPerClus * Fatsz32 * numFats);
         dataBis.skip(dataStart);
