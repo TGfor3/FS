@@ -88,6 +88,11 @@ public class FileSystemReader{
 
     }
     public static void stat(String fileNameDirName){
+        //Should get to beginning of data section
+        long dataStart = rsvdSecCnt + (bytePerSec * secPerClus * Fatsz32 * numFats);
+        dataBis.skip(dataStart);
+        dataBis.mark(-1);
+
 
     }
     public static void size(String fileName){
