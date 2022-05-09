@@ -9,15 +9,24 @@ import java.util.Scanner;
 public class FileSystemReader{
 
     static String workingDir = "/"; 
-    static byte[] FAT = new byte[516608];  
+    static byte[] FAT;  
     static int bytePerSec; 
+    static int secPerClus;
+    static int rsvdSecCnt;
+    static int numFats;
+    static int Fatsz32;
+
+    static BufferedInputStream fatBis;
+    static BufferedInputStream dataBis;
     
     public static void main(String[] args) throws FileNotFoundException {
         if(args.length == 0){
             throw new IllegalArgumentException("Please provide a file");
         }
-        BufferedInputStream fatBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
-        BufferedInputStream dataBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
+        
+        fatBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
+        dataBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
+        
         Scanner cmdScanner = new Scanner(System.in);
         String task;
        
@@ -49,8 +58,27 @@ public class FileSystemReader{
             }
         }
 
+
+
         
     }
+
+    private static void setGlobals(){
+
+        fatBis.mark(100000);
+
+        fatBis.skip(11);
+        bytePerSec = fatBis.read(2);
+        fatBis.reset(); 
+        FAT;  
+        secPerClus;
+        rsvdSecCnt;
+        numFats;
+        Fatsz32;
+
+    }
+
+
     public static void info(){
 
 

@@ -1,17 +1,17 @@
-fat32.img2 has 64 heads and 32 sectors per track,
+sector size: 512 bytes
+number of sectors: 131072 sectors
+Complete size: 512 * 131072 = 67108864 bytes | 67.1 megaBytes
 
-logical sector size is 512 bytes,
-using 0xf8 media descriptor, with 131072 sectors;
-file system has 2 32-bit FATs and 1 sector per cluster.
 FAT size is 1009 sectors
+Every word points to a cluster
 
-1009 * 512 = 
-516,608 bytes * 8 = 
-4,132,864 bits/32 = 129,152 32BitUnits in the Fat
+FAT size (bytes): 1009 * 512 = 516,608 bytes 
+FAT size (words): 516,608/4 = 129,152 words
+(There are actually 129022 words in the FAT)
 
-2^32 = 4,294,967,296 addresses
+Potential Addresses (mapped by a word): 2^32 = 4,294,967,296 addresses/clusters
+Actual Addresses (mapped by a word - 1byte): 2^24 = 16,777,216 addresses/clusters
 
-, and provides 129022 clusters.
 There are 32 reserved sectors.
 Volume ID is 3cfc30d2, volume label CHUCKLES   .
 
