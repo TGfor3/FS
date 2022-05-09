@@ -20,7 +20,7 @@ public class FileSystemReader{
     static BufferedInputStream fatBis;
     static BufferedInputStream dataBis;
     
-    public static void main(String[] args) throws FileNotFoundException {
+    public static void main(String[] args) throws FileNotFoundException, IOException {
         if(args.length == 0){
             throw new IllegalArgumentException("Please provide a file");
         }
@@ -67,19 +67,32 @@ public class FileSystemReader{
     private static void setGlobals() throws IOException{
 
         byte[] scrap = new byte[4];
-
         fatBis.mark(-1);
+
         fatBis.read(scrap, 11, 2);
         fatBis.reset(); 
         bytePerSec = (((int)scrap[1])<<8) | (((int)scrap[0]&0xFF));
         scrap = new byte[4];
-        System.out.println(bytePerSec);
+        System.out.println("bytePerSec: " + bytePerSec);
 
-        // FAT;  
-        // secPerClus;
-        // rsvdSecCnt;
+        fatBis.read(scrap, 13, 1);
+        fatBis.reset(); 
+        secPerClus = (int)scrap[1];
+        scrap = new byte[4];
+        System.out.println("secPerClus: " + secPerClus);
+
+        fatBis.read(scrap, 13, 1);
+        fatBis.reset(); 
+        secPerClus = (int)scrap[1];
+        scrap = new byte[4];
+        System.out.println("secPerClus: " + secPerClus);
+        
+        
+        rsvdSecCnt;
         // numFats;
         // Fatsz32;
+
+         // FAT;  
 
     }
 
@@ -110,6 +123,8 @@ public class FileSystemReader{
 
     }
     private static boolean navigateFS(BufferedInputStream dataBis){
+
+        return false;
 
     }
 }
