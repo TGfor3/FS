@@ -3,6 +3,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Scanner;
 
 
@@ -19,13 +20,15 @@ public class FileSystemReader{
     static BufferedInputStream fatBis;
     static BufferedInputStream dataBis;
     
-    public static void main(String[] args) throws FileNotFoundException {
+    public static void main (String[] args) throws FileNotFoundException, IOException{
         if(args.length == 0){
             throw new IllegalArgumentException("Please provide a file");
         }
         
         fatBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
         dataBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
+
+        setGlobals();
         
         Scanner cmdScanner = new Scanner(System.in);
         String task;
@@ -63,18 +66,22 @@ public class FileSystemReader{
         
     }
 
-    private static void setGlobals(){
+    private static void setGlobals() throws IOException{
 
-        fatBis.mark(100000);
+        byte[] scrap = new byte[4];
 
-        fatBis.skip(11);
-        bytePerSec = fatBis.read(2);
+        fatBis.mark(-1);
+        fatBis.read(scrap, 11, 2);
         fatBis.reset(); 
-        FAT;  
-        secPerClus;
-        rsvdSecCnt;
-        numFats;
-        Fatsz32;
+        bytePerSec = (((int)scrap[1])<<8) | (((int)scrap[0]&0xFF));
+        scrap = new byte[4];
+        System.out.println(bytePerSec);
+
+        // FAT;  
+        // secPerClus;
+        // rsvdSecCnt;
+        // numFats;
+        // Fatsz32;
 
     }
 
@@ -100,6 +107,8 @@ public class FileSystemReader{
 
     }
     private static boolean navigateFS(BufferedInputStream dataBis){
+
+        return false;
 
     }
 }
