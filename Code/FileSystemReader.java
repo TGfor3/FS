@@ -1,4 +1,3 @@
-package fs.code;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -88,7 +87,7 @@ public class FileSystemReader{
         System.out.println("secPerClus: " + secPerClus);
         
         
-        rsvdSecCnt;
+        //rsvdSecCnt;
         // numFats;
         // Fatsz32;
 
