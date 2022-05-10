@@ -26,6 +26,9 @@ public class FileSystemReader{
         
         fatBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
         dataBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
+
+        System.out.println("out");
+        setGlobals();
         
         Scanner cmdScanner = new Scanner(System.in);
         String task;
@@ -68,24 +71,19 @@ public class FileSystemReader{
         byte[] scrap = new byte[4];
         fatBis.mark(-1);
 
-        fatBis.read(scrap, 11, 2);
+        fatBis.skip(11);
+        fatBis.read(scrap, 0, 2);
         fatBis.reset(); 
         bytePerSec = (((int)scrap[1])<<8) | (((int)scrap[0]&0xFF));
         scrap = new byte[4];
         System.out.println("bytePerSec: " + bytePerSec);
 
-        fatBis.read(scrap, 13, 1);
+        fatBis.skip(13);
+        fatBis.read(scrap, 0, 1);
         fatBis.reset(); 
         secPerClus = (int)scrap[1];
         scrap = new byte[4];
         System.out.println("secPerClus: " + secPerClus);
-
-        fatBis.read(scrap, 13, 1);
-        fatBis.reset(); 
-        secPerClus = (int)scrap[1];
-        scrap = new byte[4];
-        System.out.println("secPerClus: " + secPerClus);
-        
         
         //rsvdSecCnt;
         // numFats;
@@ -109,6 +107,7 @@ public class FileSystemReader{
         long dataStart = rsvdSecCnt + (bytePerSec * secPerClus * Fatsz32 * numFats);
         dataBis.skip(dataStart);
         dataBis.mark(-1);
+        String[] path = fileNameDirName.split("/");
 
 
     }
