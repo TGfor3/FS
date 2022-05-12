@@ -147,18 +147,21 @@ public class FileSystemReader{
         
         byte[] firstHalf = getBytes(20, 2);
         byte[] secondHalf = getBytes(26, 2);
+        
         byte[] full = new byte[4];
         for (int i = 0; i < 2; i++){
             full[i] = firstHalf[i];
         }
         for (int i = 0; i < 2; i++){
-            full[i+2] = 
+            full[i+2] = secondHalf[i];
         }
-               
-        
+        int nextCluser = byteToInt(full);
 
-
+        System.out.println("Size is " + size);
+        System.out.println("Attributes " + attributes);
+        System.out.println("Next cluster number is " + String.format("%X", nextCluser));
     }
+    
     private static String attrToString(int attr){
         String attributes = "";
         if((attr & 0x20) == 0x20){

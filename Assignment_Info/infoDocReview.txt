@@ -1,6 +1,8 @@
 sector size: 512 bytes
+number of sectors in a cluster: 1
 number of sectors: 131072 sectors
 Complete size: 512 * 131072 = 67108864 bytes | 67.1 megaBytes
+
 
 FAT size is 1009 sectors
 Every word points to a cluster
