@@ -9,27 +9,34 @@ import java.util.Scanner;
 
 public class FileSystemReader{
 
-    static String workingDir = "/"; 
+    static String workingDir = "/";
+    static String imgFile;
+    static long dataStart;
     static byte[] FAT;  
     static int bytePerSec; 
     static int secPerClus;
     static int rsvdSecCnt;
     static int numFats;
     static int Fatsz32;
+    static int directoryLevel = 0;
 
     static BufferedInputStream fatBis;
-    static BufferedInputStream dataBis;
-    static long offset;
+    static BufferedInputStream bis;
+    static long offset = 0;
     
     public static void main(String[] args) throws FileNotFoundException, IOException {
         if(args.length == 0){
             throw new IllegalArgumentException("Please provide a file");
         }
-        
-        fatBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
-        dataBis = new BufferedInputStream(new FileInputStream(new File(args[0])));
+        imgFile = args[0];
+        fatBis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
+        bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
 
         setGlobals();
+        //Should get to beginning of data section
+        dataStart = rsvdSecCnt + (bytePerSec * secPerClus * Fatsz32 * numFats);
+        bis.skip(dataStart);
+        bis.mark(-1);
         
         Scanner cmdScanner = new Scanner(System.in);
         String task;
@@ -61,57 +68,34 @@ public class FileSystemReader{
                     break;
             }
         }
+    }
+    
+    //Returns the requested bytes as they are ordered in the stream
+    //Does not change the pointer in the stream
+    //byte array is the requested amount size
+    private static byte[] getBytes(int offset, int amount) throws IOException{
 
-
-
-        
+        byte[] scrap = new byte[amount];
+        bis.mark(offset + amount + 1);
+        bis.skip(offset);
+        bis.read(scrap, 0, amount);
+        bis.reset();
+        return scrap;
     }
 
+    /**
+    Does not change the pionter
+     */
     private static void setGlobals() throws IOException{
 
-        byte[] scrap;
-        fatBis.mark(-1);
-
-        scrap = new byte[2];
-        fatBis.skip(11);
-        fatBis.read(scrap, 0, 2);
-        fatBis.reset(); 
-        bytePerSec = byteToInt(scrap, 1);
-
-        scrap = new byte[1];
-        fatBis.skip(13);
-        fatBis.read(scrap, 0, 1);
-        fatBis.reset(); 
-        secPerClus = byteToInt(scrap, 0);
-
-        scrap = new byte[2];
-        fatBis.skip(0x0E);
-        fatBis.read(scrap, 0, 1);
-        fatBis.reset(); 
-        rsvdSecCnt = byteToInt(scrap, 0);
-
-        scrap = new byte[1];
-        fatBis.skip(0x10);
-        fatBis.read(scrap, 0, 1);
-        fatBis.reset(); 
-        numFats = byteToInt(scrap, 0);
-
-        scrap = new byte[4];
-        fatBis.skip(36);
-        fatBis.read(scrap, 0, 4);
-        fatBis.reset(); 
-        Fatsz32 = byteToInt(scrap, 3);
+        bytePerSec = byteToInt(getBytes(11, 2));
+        secPerClus = byteToInt(getBytes(13, 1));
+        rsvdSecCnt = byteToInt(getBytes(0x0E, 1));
+        numFats = byteToInt(getBytes(0x10, 1));
+        Fatsz32 = byteToInt(getBytes(36, 4));
         
-        FAT = new byte[Fatsz32 * bytePerSec];  
-        fatBis.skip(rsvdSecCnt);
-        fatBis.read(FAT, 0, (Fatsz32 * bytePerSec));
-        //fatBis.reset(); 
+        FAT = getBytes(rsvdSecCnt, (Fatsz32 * bytePerSec));
         System.out.println(FAT);
-
-        //Should get to beginning of data section
-        long dataStart = rsvdSecCnt + (bytePerSec * secPerClus * Fatsz32 * numFats);
-        dataBis.skip(dataStart);
-        dataBis.mark(-1);
     }
 
     /**
@@ -120,17 +104,22 @@ public class FileSystemReader{
      * @param end the last index in the array with relevant content; important if the array is larger than needed
      * @return
      */
+    private static int byteToInt (byte[] array){
 
-    
+        // int value = 0;
+        // for (int i = end; i >= 0; i--){
+        //     value = (value << 8) | (array[i] & 0xFF);
+        // }
 
-    private static int byteToInt (byte[] array, int end){
-
-        int value = 0;
-        for (int i = end; i >= 0; i--){
-            value = (value << 8) | (array[i] & 0xFF);
+        //ALternatively
+        String s = "";
+        for(int i = array.length-1; i >= 0; i--){
+            s += String.format("%02X", array[i]);
+            //System.out.print(array[i]);
         }
-
-        return value;
+        return Integer.parseInt(s,16);
+        //System.out.println(Integer.parseInt(s, 16));
+        //return value;
     }
 
 
@@ -147,39 +136,30 @@ public class FileSystemReader{
 
     }
     public static void stat(String fileNameDirName) throws IOException{
-        int size;
-        String attributes;
-        int firstCluster;
-        if(fileNameDirName.equals(".") || fileNameDirName.equals("..") || fileNameDirName.equals("/")){
-            size = 0;
-            dataBis.skip(11);
-            attributes = attributes(dataBis.read());
-            firstCluster = 0x2;            
-        }else{
-            dataBis.skip(32);
-            String[] path = fileNameDirName.split("/");
-            char c = (char)dataBis.read();
-            for(int i = 0; i < path.length; i++){
-                if(c =='A'){
-                    dataBis.skip(31);
-                }
-                String name = "";
-                for(int x = 0; x < 11; x++){
-                    name += (char)dataBis.read();
-                }
-                if(!name.equals(path[i])){
-                    System.out.println("Error: file/directory does not exist");
-                    return;
-                }
-                attributes = attributes(dataBis.read());
+        
+        if (!setDataEntryPointer(fileNameDirName)){
+            System.out.println("Error: file/directory does not exist");
+            return;
         }
-
+        
+        int size = byteToInt(getBytes(28, 4));
+        String attributes = attrToString(byteToInt(getBytes(11, 1)));
+        
+        byte[] firstHalf = getBytes(20, 2);
+        byte[] secondHalf = getBytes(26, 2);
+        byte[] full = new byte[4];
+        for (int i = 0; i < 2; i++){
+            full[i] = firstHalf[i];
         }
+        for (int i = 0; i < 2; i++){
+            full[i+2] = 
+        }
+               
         
 
 
     }
-    private static String attributes(int attr){
+    private static String attrToString(int attr){
         String attributes = "";
         if((attr & 0x20) == 0x20){
             attributes += " ATTR_ARCHIVE"; 
@@ -212,12 +192,89 @@ public class FileSystemReader{
     }
 
 
+        
     /**
      * Move through stream to desired point in data section
      * @param target intended endgoal
      * @return true is target location was reached, false otherwise
      */
-    private static boolean setDataEntry(String path){
+    private static boolean setDataEntryPointer(String path){
+        bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
+        bis.skip(dataStart);
+        boolean absolute = path.charAt(0) == '/';
+        String[] levels = path.split("/");
+        if(!absolute){
+            //TODO Deal with offset
+            bis.skip(offset);
+        }
+        //Don't want to navigate last step of path, that is the job of the caller
+        for(int i = 0; i < levels.length - 1; i++){
+            String target = levels[i];
+            if(target.equals('.')){
+                continue;
+            }
+            if(target.equals("..")){
+                //!Gotta Figure this out
+                //? Directory level and pwd path string?
+            }else{
+                bis.mark(13);
+                int next = bis.read();
+                if(next == 65){
+                    bis.skip(11);
+                    int attr = bis.read();
+                    if((attr & 0xF) == 0xF){
+                        bis.skip(20);
+                    }else{
+                        bis.reset();
+                    }
+                }
+                //Should be at the beginning of the short name entry
+                String name = "";
+                for(int i = 0; i < 11; i++){
+                    next = bis.read();
+                    if(next != 0){
+                        name += (char)next;
+                    }
+                }
+                if(target.equals(name)){
+                    //TODO Get first cluster
+                }else{
+                    return false;
+
+                
+
+            }
+            
+            
+        }
+
+
+
+        if(path.equals(".") || path.equals("..") || path.equals("/")){
+            size = 0;
+            bis.skip(11);
+            attributes = attributes(bis.read());
+            firstCluster = 0x2;            
+        }else{
+            bis.skip(32);
+            String[] path = fileNameDirName.split("/");
+            char c = (char)bis.read();
+            for(int i = 0; i < path.length; i++){
+                if(c =='A'){
+                    bis.skip(31);
+                }
+                String name = "";
+                for(int x = 0; x < 11; x++){
+                    name += (char)bis.read();
+                }
+                if(!name.equals(path[i])){
+                    System.out.println("Error: file/directory does not exist");
+                    return;
+                }
+                attributes = attributes(bis.read());
+        }
+
+        }
 
         return false;
 
