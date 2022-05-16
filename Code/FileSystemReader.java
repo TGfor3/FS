@@ -137,7 +137,7 @@ public class FileSystemReader{
     }
 
     /**
-    Does not change the pionter
+    Does not change the pointer
      */
     private static void setGlobals() throws IOException{
 
@@ -159,24 +159,12 @@ public class FileSystemReader{
      * @return
      */
     private static int byteToInt (byte[] array){
-
-        // int value = 0;
-        // for (int i = end; i >= 0; i--){
-        //     value = (value << 8) | (array[i] & 0xFF);
-        // }
-
-        //ALternatively
         String s = "";
         for(int i = array.length-1; i >= 0; i--){
             s += String.format("%02X", array[i]);
-            //System.out.print(array[i]);
         }
         return Integer.parseInt(s,16);
-        //System.out.println(Integer.parseInt(s, 16));
-        //return value;
     }
-
-
     public static void info(){
 
         System.out.println("BPB_BytesPerSec is 0x" + String.format("%X", bytePerSec) + ", " + bytePerSec);
@@ -295,7 +283,6 @@ public class FileSystemReader{
                 //!Gotta Figure this out
                 //? Directory level and pwd path string?
             }else{
-                //?If we always start from the beginning, so aren't we always starting from cluster 2? so why not hard code?
                 return parseDirectory(target, rootCluster, ls);
             }
         }
@@ -343,7 +330,11 @@ public class FileSystemReader{
                 bis.skip((Math.abs(nextCluster - startCluster) * bytePerSec * secPerClus));
         }
         if(startCluster == 0x0ffffff7){
-            
+            throw new IllegalStateException("Bad Cluster discovered");
+        }else if(startCluster > 0x0ffffff7 && startCluster <= 0x0fffffff){
+            return -1;
+        }else{
+            throw new IllegalArgumentException("We got big problems: Cluster value too large");
         }
     }
     //}
