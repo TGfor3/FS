@@ -312,7 +312,7 @@ public class FileSystemReader{
         
         while(startCluster < 0x0ffffff7){
                 int byteCounter = 0;
-                while(byteCounter < 512){
+                while(byteCounter < (bytePerSec * secPerClus)){
                     bis.mark(13);
                     int next = bis.read();
                     if(next == 65){
