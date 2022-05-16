@@ -1,0 +1,4 @@
+work on parsing the input, like throwing errors when not enough input
+substitute a period for ls
+. and ..
+file/directory not found
