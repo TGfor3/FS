@@ -83,27 +83,21 @@ public class FileSystemReader{
                     cd(cmdScanner.next());
                     break;
                 case "read":
-                    String filename = "";
-                    String offset = "";
-                    String numBytes = "";
+                    String[] inputs = new String[3];
+                    boolean cont = false;
                     for(int i = 0; i < 3; i++){
                         if(cmdScanner.hasNext()){
-                            switch (i){
-                                case 0:
-                                    filename = cmdScanner.next();
-                                    break;
-                                case 1:
-                                    offset = cmdScanner.next();
-                                    break;
-                                case 2:
-                                    numBytes = cmdScanner.next();
-                                    break;
-                            }
+                            inputs[i] = cmdScanner.next();
                         }else{
                             System.out.println("Error: Please provide the proper number of arguments");
+                            cont = true;
+                            break;
                         }
                     }
-                    read(filename, offset, numBytes);
+                    if(cont){
+                        continue;
+                    }
+                    read(inputs[0], inputs[1], inputs[2]);
                     break;
                 default:
                     System.out.println("Error: Improper command issued");
@@ -266,6 +260,7 @@ public class FileSystemReader{
      * @return current cluster of pointer, -1 if the target path doesnt exist
      */
     private static int setDataEntryPointer(String path, boolean ls){
+        bis.close();
         bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
         bis.skip(dataStart);
         boolean absolute = path.charAt(0) == '/';
@@ -273,19 +268,37 @@ public class FileSystemReader{
             //? What if pwd doesnt end with a /?, Not going to split properly
             path = (workingDir + (workingDir.charAt(workingDir.length() - 1) != '/' ? '/' : "") + path);
         }
+        //Preproccess path string, handling periods
         String[] levels = path.split("/");
+        String processedPath = "/";
         for(int i = 0; i < levels.length; i++){
             String target = levels[i];
             if(target.equals('.')){
                 continue;
-            }
-            if(target.equals("..")){
-                //!Gotta Figure this out
-                //? Directory level and pwd path string?
+            }else if(target.equals("..")){
+                //Meaning not in the root
+                if(workingDir.length() > 1){
+                    String[] backup = path.split("/");
+                    String newPath = "";
+                    for(int x = 0; x < backup.length - 1; x++){
+                        newPath += backup[x];
+                    }
+                    processedPath = newPath;
+                }
             }else{
-                return parseDirectory(target, rootCluster, ls);
+                processedPath += target;
+            }
+            processedPath += '/';
+        }
+        levels = processedPath.split("/");
+        int startCluster = 2;
+        for(int i = 0; i < levels.length; i++){
+            startCluster = parseDirectory(levels[i], startCluster, ls);
+            if(startCluster == -1){
+                return startCluster;
             }
         }
+        return startCluster;
     }
     /**
     file stream pointer needs to be set to the relavent directory
@@ -348,9 +361,11 @@ public class FileSystemReader{
         String name = "";
 
         for (int i = 0; i < nameBytes.length; i++){
+            //?WHy not pull this out of loop?
             if (nameBytes[0] == 0 || nameBytes[0] == 0xE5){
                 return name;
             }
+            //?Why not namebytes[i]?
             if (nameBytes[1] != 0){
                 name += (char)nameBytes[i];
             }
