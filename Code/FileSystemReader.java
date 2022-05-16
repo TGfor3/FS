@@ -238,8 +238,7 @@ public class FileSystemReader{
         }
         int size = byteToInt(getBytes(28, 4, false));
         System.out.println("Size of " + fileName + " is " + size + " bytes");
-        
-
+        return;
     }
     public static void cd(String dirName){
 
@@ -269,25 +268,28 @@ public class FileSystemReader{
             path = (workingDir + (workingDir.charAt(workingDir.length() - 1) != '/' ? '/' : "") + path);
         }
         //Preproccess path string, handling periods
+        //TODO When workingdir is in the root
         String[] levels = path.split("/");
         String processedPath = "/";
         for(int i = 0; i < levels.length; i++){
             String target = levels[i];
             if(target.equals('.')){
                 continue;
-            }else if(target.equals("..")){
+            }
+            if(target.equals("..")){
                 //Meaning not in the root
                 if(workingDir.length() > 1){
-                    String[] backup = path.split("/");
+                    String[] backup = processedPath.split("/");
                     String newPath = "";
                     for(int x = 0; x < backup.length - 1; x++){
-                        newPath += backup[x];
+                        newPath += ("/" + backup[x]);
                     }
                     processedPath = newPath;
                 }
             }else{
                 processedPath += target;
             }
+            //? Does it matter if has / at the end?
             processedPath += '/';
         }
         levels = processedPath.split("/");
