@@ -42,12 +42,16 @@ public class FileSystemReader{
         bis.mark(-1);
         
         Scanner cmdScanner = new Scanner(System.in);
+        String input;
+        String inputArray[];
         String task;
        
         while(true){
             System.out.print(workingDir + "] ");
-            task = cmdScanner.next();
-            task.toLowerCase();
+            input = cmdScanner.nextLine();
+            input.toLowerCase();
+            inputArray = input.split(" ");
+            task = inputArray[0];
 
             switch(task){
                 case "stop":
@@ -56,18 +60,18 @@ public class FileSystemReader{
                     info();
                     break;
                 case "ls" :
-                    if (cmdScanner.hasNext()){
-                        ls(cmdScanner.next());
+                    if (inputArray.length > 1){
+                        ls(inputArray[1]);
                     } else {
                         ls(".");
                     }
                     break;
                 case "stat":
-                    if(!cmdScanner.hasNext()){
+                    if(inputArray.length == 1){
                         System.out.println("Error: Please provide an argument");  
-                        continue; 
+                    } else {
+                        stat(inputArray[1]);
                     }
-                    stat(cmdScanner.next());
                     break;
                 case "size":
                     if(!cmdScanner.hasNext()){
@@ -149,10 +153,10 @@ public class FileSystemReader{
         secPerClus = byteToInt(getBytes(13, 1, false, bis));
         rsvdSecCnt = byteToInt(getBytes(0x0E, 1, false, bis));
         numFats = byteToInt(getBytes(0x10, 1, false, bis));
-        Fatsz32 = byteToInt(getBytes(0x24, 4, false, bis));
+        Fatsz32 = byteToInt(getBytes(0x24, 4, false, bis)); //sectors per fat
         rootCluster = byteToInt(getBytes(44, 4, false, bis));
         
-        FAT = new int[Fatsz32 * bytePerSec];
+        FAT = new int[Fatsz32 * bytePerSec]; 
         getBytes(rsvdSecCnt, (Fatsz32 * bytePerSec), true, bis);
         //System.out.println(FAT);
     }
