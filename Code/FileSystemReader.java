@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
 
+import javax.print.StreamPrintService;
+
 
 public class FileSystemReader{
 
@@ -47,7 +49,6 @@ public class FileSystemReader{
             task = cmdScanner.next();
             task.toLowerCase();
 
-            boolean hasNext = cmdScanner.hasNext();
             switch(task){
                 case "stop":
                     return;
@@ -55,28 +56,28 @@ public class FileSystemReader{
                     info();
                     break;
                 case "ls" :
-                    if (hasNext){
+                    if (cmdScanner.hasNext()){
                         ls(cmdScanner.next());
                     } else {
                         ls(".");
                     }
                     break;
                 case "stat":
-                    if(!hasNext){
+                    if(!cmdScanner.hasNext()){
                         System.out.println("Error: Please provide an argument");  
                         continue; 
                     }
                     stat(cmdScanner.next());
                     break;
                 case "size":
-                    if(!hasNext){
+                    if(!cmdScanner.hasNext()){
                      System.out.println("Error: Please provide an argument");  
                      continue; 
                     }
                     size(cmdScanner.next());
                     break;
                 case "cd":
-                    if(!hasNext){
+                    if(!cmdScanner.hasNext()){
                         System.out.println("Error: Please provide an argument");  
                         continue; 
                     }
@@ -106,29 +107,37 @@ public class FileSystemReader{
         }
     }
     
+    //
     //Returns the requested bytes as they are ordered in the stream
     //Does not change the pointer in the stream
     //byte array is the requested amount size
     //fat: true when initializing fat, false otherwise
-    private static byte[] getBytes(int offset, int amount, boolean fat) throws IOException{
+    private static byte[] getBytes(int offset, int amount, boolean fat, BufferedInputStream streamToRead) throws IOException{
 
         byte[] scrap = new byte[amount];
-        bis.mark(offset + amount + 1);
-        bis.skip(offset);
+        streamToRead.mark(offset + amount + 1);
+        streamToRead.skip(offset);
         if(fat){
             int byteCounter = 0;
             int index = 0;
             byte[] fatEntry = new byte[4];
             while(byteCounter < amount){
-                bis.read(fatEntry, 0, 4);
+                streamToRead.read(fatEntry, 0, 4);
                 FAT[index++] = byteToInt(fatEntry);
                 byteCounter += 4;
             }
         }else{
-            bis.read(scrap, 0, amount);
+            streamToRead.read(scrap, 0, amount);
         }
-        bis.reset();
+        streamToRead.reset();
         return scrap;
+    }
+
+    private static void setFatBisPointer(int sector) throws IOException{
+
+        fatBis.close();
+        fatBis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
+        fatBis.skip(sector * 32);
     }
 
     /**
@@ -136,15 +145,16 @@ public class FileSystemReader{
      */
     private static void setGlobals() throws IOException{
 
-        bytePerSec = byteToInt(getBytes(11, 2, false));
-        secPerClus = byteToInt(getBytes(13, 1, false));
-        rsvdSecCnt = byteToInt(getBytes(0x0E, 1, false));
-        numFats = byteToInt(getBytes(0x10, 1, false));
-        Fatsz32 = byteToInt(getBytes(36, 4, false));
-        rootCluster = byteToInt(getBytes(44, 4, false));
+        bytePerSec = byteToInt(getBytes(11, 2, false, bis));
+        secPerClus = byteToInt(getBytes(13, 1, false, bis));
+        rsvdSecCnt = byteToInt(getBytes(0x0E, 1, false, bis));
+        numFats = byteToInt(getBytes(0x10, 1, false, bis));
+        Fatsz32 = byteToInt(getBytes(0x24, 4, false, bis));
+        rootCluster = byteToInt(getBytes(44, 4, false, bis));
         
-        getBytes(rsvdSecCnt, (Fatsz32 * bytePerSec), true);
-        System.out.println(FAT);
+        FAT = new int[Fatsz32 * bytePerSec];
+        getBytes(rsvdSecCnt, (Fatsz32 * bytePerSec), true, bis);
+        //System.out.println(FAT);
     }
 
     /**
@@ -154,11 +164,18 @@ public class FileSystemReader{
      * @return
      */
     private static int byteToInt (byte[] array){
-        String s = "";
-        for(int i = array.length-1; i >= 0; i--){
-            s += String.format("%02X", array[i]);
-        }
-        return Integer.parseInt(s,16);
+        // String s = "";
+        // for(int i = array.length-1; i >= 0; i--){
+        //     s += String.format("%02X", array[i]);
+        // }
+        // return Integer.parseInt(s,16);
+
+        int value = 0;
+         for (int i = array.length - 1; i >= 0; i--){
+             value = (value << 8) | (array[i] & 0xFF);
+         }
+
+         return value;
     }
     public static void info(){
 
@@ -170,9 +187,9 @@ public class FileSystemReader{
         //System.out.println("FAT:\n" + Arrays.toString(FAT));
     }
     
-    public static void ls(String dirName){
+    public static void ls(String dirName) throws IOException{
 
-        int FATCluster = setDataEntryPointer(dirName, true, false);
+        int FATCluster = setDataEntryPointer (dirName, true, false);
 
         if (FATCluster == -1){
             System.out.println("Error: " + dirName + " is not a directory");
@@ -189,8 +206,8 @@ public class FileSystemReader{
             return;
         }
         
-        int size = byteToInt(getBytes(28, 4, false));
-        String attributes = attrToString(byteToInt(getBytes(11, 1, false)));
+        int size = byteToInt(getBytes(28, 4, false, bis));
+        String attributes = attrToString(byteToInt(getBytes(11, 1, false, bis)));
         int startCluster = getStartCluster();
         
 
@@ -208,9 +225,9 @@ public class FileSystemReader{
         returns: the int value of the start cluster
 
      */
-    private static int getStartCluster (){
-        byte[] firstHalf = getBytes(20, 2, false);
-        byte[] secondHalf = getBytes(26, 2, false);
+    private static int getStartCluster () throws IOException{
+        byte[] firstHalf = getBytes(20, 2, false, bis);
+        byte[] secondHalf = getBytes(26, 2, false, bis);
         
         byte[] full = new byte[4];
         for (int i = 0; i < 2; i++){
@@ -244,17 +261,17 @@ public class FileSystemReader{
         }
         return attributes;        
     }
-    public static void size(String fileName){
+    public static void size (String fileName) throws IOException {
 
         if (setDataEntryPointer(fileName, false, false) == -1){
             System.out.println("Error: " + fileName + " is not a file");
             return;
         }
-        int size = byteToInt(getBytes(28, 4, false));
+        int size = byteToInt(getBytes(28, 4, false, bis));
         System.out.println("Size of " + fileName + " is " + size + " bytes");
         return;
     }
-    public static void cd(String dirName){
+    public static void cd (String dirName) throws IOException{
         if(setDataEntryPointer(dirName, false, true) == -1){
             System.out.println("Error: " + dirName + "is not a directory");
         }
@@ -272,7 +289,7 @@ public class FileSystemReader{
      * @param target intended endgoal
      * @return Cluster number where target directory begins
      */
-    private static int setDataEntryPointer(String path, boolean ls, boolean cd){
+    private static int setDataEntryPointer (String path, boolean ls, boolean cd) throws IOException{
         bis.close();
         bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
         bis.skip(dataStart);
@@ -370,7 +387,7 @@ public class FileSystemReader{
     nextFATIndex: index of the FAT which points to the next cluster in the data to continue the search
     returns: cluster number in data section in which target was found; most recent FAT value
     */
-    private static int parseDirectory(String target, int nextFATIndex, boolean ls){
+    private static int parseDirectory(String target, int nextFATIndex, boolean ls) throws IOException{
         
         // because method requires pointer be set to the entry of the directory to search, semantics are ok for getStartCluster
         
@@ -415,7 +432,9 @@ public class FileSystemReader{
             if(nextFATIndex >= 0x0ffffff8 && nextFATIndex <= 0x0fffffff){
                 return -1;
             }
-            int nextCluster = FAT[nextFATIndex];
+            setFatBisPointer(nextFATIndex);
+            int nextCluster = byteToInt(getBytes(0, 4, false, fatBis));
+            //FAT[nextFATIndex];
             bis.skip((Math.abs(nextCluster - nextFATIndex) * bytePerSec * secPerClus));
         }
         if(nextFATIndex == 0x0ffffff7){
@@ -429,9 +448,9 @@ public class FileSystemReader{
     /**
     Stream pointer must be set to the data entry
     */
-    private static String getDataEntryName(){
+    private static String getDataEntryName() throws IOException{
 
-        byte[] nameBytes = getBytes(0, 11, false);
+        byte[] nameBytes = getBytes(0, 11, false, bis);
         String name = "";
         if (nameBytes[0] == 0 || nameBytes[0] == 0xE5){
             return name + nameBytes[0];
