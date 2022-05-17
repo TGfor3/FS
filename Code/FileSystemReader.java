@@ -109,6 +109,7 @@ public class FileSystemReader{
     //Returns the requested bytes as they are ordered in the stream
     //Does not change the pointer in the stream
     //byte array is the requested amount size
+    //fat: true when initializing fat, false otherwise
     private static byte[] getBytes(int offset, int amount, boolean fat) throws IOException{
 
         byte[] scrap = new byte[amount];
@@ -171,7 +172,7 @@ public class FileSystemReader{
     
     public static void ls(String dirName){
 
-        int FATCluster = setDataEntryPointer(dirName, true);
+        int FATCluster = setDataEntryPointer(dirName, true, false);
 
         if (FATCluster == -1){
             System.out.println("Error: " + dirName + " is not a directory");
@@ -181,16 +182,33 @@ public class FileSystemReader{
         parseDirectory("", FATCluster, true);
     }
 
-    public static void stat(String fileNameDirName) throws IOException{
+    private static void stat(String fileNameDirName) throws IOException{
         
-        if (setDataEntryPointer(fileNameDirName, false) == -1){
+        if (setDataEntryPointer(fileNameDirName, false, false) == -1){
             System.out.println("Error: file/directory does not exist");
             return;
         }
         
         int size = byteToInt(getBytes(28, 4, false));
         String attributes = attrToString(byteToInt(getBytes(11, 1, false)));
+        int startCluster = getStartCluster();
         
+
+        System.out.println("Size is " + size);
+        System.out.println("Attributes " + attributes);
+        System.out.println("Next cluster number is " + String.format("%X", startCluster));
+    }
+
+    /**
+        summary: returns the int value of the combined high bits and low bits of the target entry
+
+        pointer before running: set to the target entry pointer
+        pointer after running: must remain at the target entry pointer
+        
+        returns: the int value of the start cluster
+
+     */
+    private static int getStartCluster (){
         byte[] firstHalf = getBytes(20, 2, false);
         byte[] secondHalf = getBytes(26, 2, false);
         
@@ -201,11 +219,7 @@ public class FileSystemReader{
         for (int i = 0; i < 2; i++){
             full[i+2] = secondHalf[i];
         }
-        int nextCluser = byteToInt(full);
-
-        System.out.println("Size is " + size);
-        System.out.println("Attributes " + attributes);
-        System.out.println("Next cluster number is " + String.format("%X", nextCluser));
+        return byteToInt(full);
     }
     
     private static String attrToString(int attr){
@@ -232,7 +246,7 @@ public class FileSystemReader{
     }
     public static void size(String fileName){
 
-        if (setDataEntryPointer(fileName, false) == -1){
+        if (setDataEntryPointer(fileName, false, false) == -1){
             System.out.println("Error: " + fileName + " is not a file");
             return;
         }
@@ -241,9 +255,9 @@ public class FileSystemReader{
         return;
     }
     public static void cd(String dirName){
-
-        
-
+        if(setDataEntryPointer(dirName, false, true) == -1){
+            System.out.println("Error: " + dirName + "is not a directory");
+        }
     }
     public static void read(String fileName, String offset, String numBytes){
 
@@ -256,9 +270,9 @@ public class FileSystemReader{
     /**
      * Move through stream to desired point in data section
      * @param target intended endgoal
-     * @return current cluster of pointer, -1 if the target path doesnt exist
+     * @return Cluster number where target directory begins
      */
-    private static int setDataEntryPointer(String path, boolean ls){
+    private static int setDataEntryPointer(String path, boolean ls, boolean cd){
         bis.close();
         bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
         bis.skip(dataStart);
@@ -280,43 +294,95 @@ public class FileSystemReader{
                 //Meaning not in the root
                 if(workingDir.length() > 1){
                     String[] backup = processedPath.split("/");
-                    String newPath = "";
+                    String newPath = "/";
                     for(int x = 0; x < backup.length - 1; x++){
-                        newPath += ("/" + backup[x]);
+                        newPath += (backup[x] + '/');
                     }
                     processedPath = newPath;
                 }
             }else{
-                processedPath += target;
+                processedPath += (target + '/');
             }
-            //? Does it matter if has / at the end?
-            processedPath += '/';
         }
         levels = processedPath.split("/");
-        int startCluster = 2;
+        int nextFATIndex = rootCluster;
         for(int i = 0; i < levels.length; i++){
-            startCluster = parseDirectory(levels[i], startCluster, ls);
-            if(startCluster == -1){
-                return startCluster;
+            int currentFATIndex = parseDirectory(levels[i], nextFATIndex, ls);
+            if(currentFATIndex == -1){
+                return currentFATIndex;
+            }if(i == (levels.length - 1)){
+                if(cd){
+                    workingDir = processedPath.substring(0, processedPath.length() - 1);
+                }
+                return currentFATIndex;
             }
+            int startCluster = getStartCluster();
+            bis.skip((startCluster - currentFATIndex) * bytePerSec * secPerClus);
+            //The number of the first cluster is also the index in teh fat to find the second cluster
+            nextFATIndex = startCluster;
+
+            //At this point bis pointer should be pointing at entry for the target directory
+            //Need to read the entry to get the first cluster of the target directory
+
+
+
+            //!Just Implemented
+            /**
+             * Start at root
+             * call parsedirectory to find teh entry for the target subdirectory or file
+             * once found, parsedirectory should return to setdataentrypointer
+             * if this is not the end of the path provided by the user
+             * (Meaning we intend to search further down the directory structure)
+             * Then parse the entry and set teh pointer to teh beginning of the subdirectory's first cluster
+             *      Works here, bc have access to the current cluster so we know how far to skip
+             *      (first cluster of next - current cluster) to get to the beginning of the next cluster
+             * At that point, the pointer will be pointing to the beginning of the current target directory in time for the
+             * next iteration of the loop
+             * When the next iterartion begins, the pointer is pointing at the beginning of teh directory
+             * where we now want to search for the new target
+             * However, if this is the overall target, the file or directory we are searching for,
+             * then we want to leave the pointer pointing at the beginnign of the entry
+             * this will allow the calling methods, like stat and size to access the information.
+             */
+            
+            
+
+
+
+
+            // if(startCluster == -1){
+            //     return startCluster;
+            // }
         }
-        return startCluster;
+        //Only reaches here if only "/" was passed in 
+        return nextFATIndex;
     }
+   
+    //Can read the entry of the start directory either in the beginning of parse directory or after calling parsedirectory in setdataentrypointer
+    
     /**
-    file stream pointer needs to be set to the relavent directory
-    prints everything out
+    summary: sets pointer to the entry of a target file or directory
+
+    pointer before running: set to directory entry of directory to search
+    pointer after running: set to directory or file entry of target
+    
+    target: file or directory to look for
+    nextFATIndex: index of the FAT which points to the next cluster in the data to continue the search
+    returns: cluster number in data section in which target was found; most recent FAT value
     */
-    private static int parseDirectory(String target, int startCluster, boolean ls){
+    private static int parseDirectory(String target, int nextFATIndex, boolean ls){
         
-        String accumulatedName = "";
+        // because method requires pointer be set to the entry of the directory to search, semantics are ok for getStartCluster
         
-        while(startCluster < 0x0ffffff7){
-                int byteCounter = 0;
+        //Bc we are modeling ls -a, which starts with those two directories by default
+        String accumulatedName = ". .. ";
+        while(nextFATIndex != 0x0ffffff7){
+            int byteCounter = 0;
                 while(byteCounter < (bytePerSec * secPerClus)){
                     bis.mark(13);
                     int next = bis.read();
                     if(next == 65){
-                        bis.skip(11);
+                        bis.skip(10);
                         int attr = bis.read();
                         if((attr & 0xF) == 0xF){
                             bis.skip(20);
@@ -327,29 +393,35 @@ public class FileSystemReader{
                     }
                     String name = getDataEntryName();
                     if (ls){
-                        if (name.length() == 0){
-                            System.out.println(accumulatedName + name);
-                        } else {
+                        //reached last entry in directory so print
+                        if (name.equals("0")){
+                            System.out.println(accumulatedName.stripTrailing());
+                        //entry must have been deleted but could have entries after this one
+                        }else if(name.equals("229")){
+                            bis.skip(32);
+                            byteCounter += 32;
+                        }else{
                             accumulatedName += name + " ";
                         }
                     }else{
                         if(target.equals(name)){
-                            return startCluster;
+                            return nextFATIndex;
                         }else{
                             bis.skip(32);
                             byteCounter += 32;
                         }
                     }  
                 }
-                int nextCluster = FAT[startCluster];
-                bis.skip((Math.abs(nextCluster - startCluster) * bytePerSec * secPerClus));
+            if(nextFATIndex >= 0x0ffffff8 && nextFATIndex <= 0x0fffffff){
+                return -1;
+            }
+            int nextCluster = FAT[nextFATIndex];
+            bis.skip((Math.abs(nextCluster - nextFATIndex) * bytePerSec * secPerClus));
         }
-        if(startCluster == 0x0ffffff7){
+        if(nextFATIndex == 0x0ffffff7){
             throw new IllegalStateException("Bad Cluster discovered");
-        }else if(startCluster > 0x0ffffff7 && startCluster <= 0x0fffffff){
-            return -1;
         }else{
-            throw new IllegalArgumentException("We got big problems: Cluster value too large");
+            throw new IllegalArgumentException("We got big problems: How did we get here?");
         }
     }
     //}
@@ -361,18 +433,14 @@ public class FileSystemReader{
 
         byte[] nameBytes = getBytes(0, 11, false);
         String name = "";
-
+        if (nameBytes[0] == 0 || nameBytes[0] == 0xE5){
+            return name + nameBytes[0];
+        }
         for (int i = 0; i < nameBytes.length; i++){
-            //?WHy not pull this out of loop?
-            if (nameBytes[0] == 0 || nameBytes[0] == 0xE5){
-                return name;
-            }
-            //?Why not namebytes[i]?
-            if (nameBytes[1] != 0){
+            if (nameBytes[i] != 0){
                 name += (char)nameBytes[i];
             }
         }
-
         return name;
     }
 }
