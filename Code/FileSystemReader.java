@@ -64,7 +64,7 @@ public class FileSystemReader{
                     info();
                     break;
                 case "ls" :
-                    if (inputArray.length > 1){
+                    if (inputArray.length == 2){
                         ls(inputArray[1]);
                     } else {
                         ls(".");
