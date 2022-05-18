@@ -19,7 +19,7 @@ public class FileSystemReader{
     static int secPerClus;
     static int rsvdSecCnt;
     static int numFats;
-    static int Fatsz32;
+    static int Fatsz32; //sectors per fat
     static int rootCluster;
 
     static int directoryLevel = 0;
@@ -37,7 +37,7 @@ public class FileSystemReader{
 
         setGlobals();
         //Should get to beginning of data section
-        dataStart = rsvdSecCnt + (bytePerSec * secPerClus * Fatsz32 * numFats);
+        dataStart = (rsvdSecCnt * bytePerSec) + (bytePerSec * secPerClus * Fatsz32 * numFats);
         bis.skip(dataStart);
         bis.mark(-1);
         
@@ -209,6 +209,8 @@ public class FileSystemReader{
             System.out.println("Error: file/directory does not exist");
             return;
         }
+
+        System.out.println("breakpoint");
         
         int size = byteToInt(getBytes(28, 4, false, bis));
         String attributes = attrToString(byteToInt(getBytes(11, 1, false, bis)));
@@ -297,18 +299,26 @@ public class FileSystemReader{
         bis.close();
         bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
         bis.skip(dataStart);
+        System.out.println("dataStart: " + dataStart);
+        System.out.println("name: " + getDataEntryName());
+        
+        //path = workingDir + / + path
         boolean absolute = path.charAt(0) == '/';
         if(!absolute){
             //? What if pwd doesnt end with a /?, Not going to split properly
             path = (workingDir + (workingDir.charAt(workingDir.length() - 1) != '/' ? '/' : "") + path);
         }
+
+
         //Preproccess path string, handling periods
         //TODO When workingdir is in the root
         String[] levels = path.split("/");
+
         String processedPath = "/";
-        for(int i = 0; i < levels.length; i++){
+        
+        for(int i = 1; i < levels.length; i++){ //starts at one because all paths start with '/'
             String target = levels[i];
-            if(target.equals('.')){
+            if(target.equals(".")){
                 continue;
             }
             if(target.equals("..")){
@@ -325,9 +335,14 @@ public class FileSystemReader{
                 processedPath += (target + '/');
             }
         }
+        System.out.println("processed Path: " + processedPath);
         levels = processedPath.split("/");
+
         int nextFATIndex = rootCluster;
-        for(int i = 0; i < levels.length; i++){
+        System.out.println("rootCluster: " + rootCluster);
+
+        for(int i = 1; i < levels.length; i++){
+
             int currentFATIndex = parseDirectory(levels[i], nextFATIndex, ls);
             if(currentFATIndex == -1){
                 return currentFATIndex;
@@ -350,11 +365,11 @@ public class FileSystemReader{
             //!Just Implemented
             /**
              * Start at root
-             * call parsedirectory to find teh entry for the target subdirectory or file
+             * call parsedirectory to find the entry for the target subdirectory or file
              * once found, parsedirectory should return to setdataentrypointer
              * if this is not the end of the path provided by the user
              * (Meaning we intend to search further down the directory structure)
-             * Then parse the entry and set teh pointer to teh beginning of the subdirectory's first cluster
+             * Then parse the entry and set the pointer to the beginning of the subdirectory's first cluster
              *      Works here, bc have access to the current cluster so we know how far to skip
              *      (first cluster of next - current cluster) to get to the beginning of the next cluster
              * At that point, the pointer will be pointing to the beginning of the current target directory in time for the
