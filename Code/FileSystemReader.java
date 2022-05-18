@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Scanner;
 
-import javax.print.StreamPrintService;
 
 
 public class FileSystemReader{
@@ -67,7 +66,7 @@ public class FileSystemReader{
                     if (inputArray.length == 2){
                         ls(inputArray[1]);
                     } else {
-                        ls(".");
+                        ls("/");
                     }
                     break;
                 case "stat":
@@ -121,7 +120,7 @@ public class FileSystemReader{
         fatBis.skip(rsvdSecCnt * bytePerSec);
 
         byte[] value = new byte[4];
-        fatBis.skip(address * 4);
+        fatBis.skip((address) * 4);
         fatBis.read(value, 0, 4);
         return byteToInt(value);
     }
@@ -186,25 +185,23 @@ public class FileSystemReader{
     }
     
     public static void ls(String dirName) throws IOException{
-
         int FATCluster = setDataEntryPointer(dirName, true, false);
-
+        //Check if is file or directory
         if (FATCluster == -1){
             System.out.println("Error: " + dirName + " is not a directory");
             return;
         }
-
-        parseDirectory("", FATCluster, true);
+        System.out.println("First cluster: " + getStartCluster());
+        int cluster = (dirName.equals("/") ? 2 : getStartCluster());
+        setPointerCluster(cluster);
+        parseDirectory("", cluster, true);
     }
-
     private static void stat(String fileNameDirName) throws IOException{
         
         if (setDataEntryPointer(fileNameDirName, false, false) == -1){
             System.out.println("Error: file/directory does not exist");
             return;
         }
-        
-        
         int size = byteToInt(getBytes(28, 4, false));
         String attributes = attrToString(byteToInt(getBytes(11, 1, false)));
         int startCluster = getStartCluster();
@@ -354,30 +351,35 @@ public class FileSystemReader{
         setPointerCluster(rootCluster);
         
         String processedPath = processPath(path);
+        System.out.println("Path: " + processedPath);
         String [] levels = processedPath.split("/");
 
         int nextFATIndex = rootCluster;
         //System.out.println("nextFatIndex: " + nextFATIndex);
-
+        //int currentFATIndex = rootCluster;
         for(int i = 1; i < levels.length; i++){ //starts at one because all paths start with '/', and therefore all levels[] have "" at the beginning
-
+            //System.out.println("Target: " + levels[i]);
+            
             //System.out.println("calling parseDirectory on levels[i]: " + levels[i]);
             int currentFATIndex = parseDirectory(levels[i], nextFATIndex, ls);
             // System.out.println("\nsetDataEntryPointer");
             // System.out.println("Returned current cluster: " + currentFATIndex);
 
-
             if(currentFATIndex == -1){
                 return currentFATIndex;
             }
-            int startCluster = getStartCluster();    
-            setPointerCluster(startCluster);
-            nextFATIndex = startCluster;
+            if(i < levels.length - 1){
+                int startCluster = getStartCluster();    
+                setPointerCluster(startCluster);
+                nextFATIndex = startCluster;
+            }
 
             // System.out.println("\nsetDataEntryPointer");
             // System.out.println("Start cluster of next directory is: " + startCluster);
         }
-        //Only reaches here if only "/" was passed in 
+        if(ls){
+            System.out.println(getDataEntryName());
+        }
         return nextFATIndex;
     }
        
@@ -398,18 +400,19 @@ public class FileSystemReader{
         // because method requires pointer be set to the entry of the directory to search, semantics are ok for getStartCluster
         //Bc we are modeling ls -a, which starts with those two directories by default
         
-        // System.out.println("\nparseDirectory");
+        //System.out.println("\nparseDirectory");
         // System.out.println("nextFATIndex: " + nextFATIndex);
         // System.out.println("Lookig for: " + target);
         
-        String accumulatedName = ". .. ";
+        String accumulatedName = "";
+        boolean lsBreak = false;
         while(nextFATIndex != 0x0ffffff7){
             int byteCounter = 0;
                 while(byteCounter < (bytePerSec * secPerClus)){
 
                     // System.out.println("byteCounter: " + byteCounter);
                     // System.out.println("cluster size: " + bytePerSec * secPerClus);
-                    bis.mark(13);
+                    //bis.mark(13);
 
                     int firstByte = byteToInt(getBytes(0, 1, false));
                     if(firstByte == 65){ //checks if entry starts with A
@@ -422,31 +425,48 @@ public class FileSystemReader{
                         }
                     }
                     String name = getDataEntryName();
-                    //System.out.println("name: " + name);
-                    if (ls){
-                        //reached last entry in directory so print
-                        if (name.equals("0")){
-                            System.out.println(accumulatedName.stripTrailing());
-                        //entry must have been deleted but could have entries after this one
-                        }else if(name.equals("229")){
-                            bis.skip(32);
-                            byteCounter += 32;
-                        }else{
-                            accumulatedName += name + " ";
-                        }
-                    }else{
+                   // System.out.println("name: " + name);
+                    // if (ls){
+                    //     //reached last entry in directory so print
+                    //     if (name.equals("0")){
+                    //         System.out.println(accumulatedName.stripTrailing());
+                    //     //entry must have been deleted but could have entries after this one
+                    //     }else if(name.equals("229")){
+                    //         bis.skip(32);
+                    //         byteCounter += 32;
+                    //     }else{
+                    //         accumulatedName += name + " ";
+                    //     }
+                    // }else{
                         if(target.equals(name)){
                             return nextFATIndex;
-                        }else{
-                            bis.skip(32);
-                            byteCounter += 32;
                         }
-                    }
+                        if(ls){
+                            if(!name.equals("0")){
+                                accumulatedName += name + " ";
+                            }else{
+                                lsBreak = true;
+                                break;
+                            }
+                            // else{
+                            //     System.out.println(accumulatedName.stripTrailing());
+                            //     //Don't really need it but have to return something
+                            //     return nextFATIndex;
+                            // }
+                        }
+                        bis.skip(32);
+                        byteCounter += 32;
+                        
+                    //}
                 }
+            
             if(nextFATIndex >= 0x0ffffff8 && nextFATIndex <= 0x0fffffff){
-                return -1;
+                break;
+                //return -1;
             }
-
+            if(lsBreak){
+                break;
+            }
             int nextCluster = getIntFromFat(nextFATIndex);
             int newAddress = setPointerCluster(nextCluster);
             
@@ -455,11 +475,15 @@ public class FileSystemReader{
             // System.out.println("nextFatIndex: " + nextFATIndex);
             // System.out.println("Address of next cluster: " + newAddress);
         }
+        if(ls){
+            System.out.println(accumulatedName.stripTrailing());
+            //Don't really need it but have to return something
+            return nextFATIndex;
+        }
         if(nextFATIndex == 0x0ffffff7){
             throw new IllegalStateException("Bad Cluster discovered");
-        }else{
-            throw new IllegalArgumentException("We got big problems: How did we get here?");
         }
+        return -1;
     }
     //}
 
@@ -508,7 +532,7 @@ public class FileSystemReader{
         //bis.skip(11);
         int attr = byteToInt(getBytes(11, 1, false));
         boolean notFile = false;
-        if(attr == 0x10 || attr == 0x08){
+        if((attr & 0x10) ==  0x10 || (attr & 0x08)== 0x08){
             notFile = true;
         }
 
