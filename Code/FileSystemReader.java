@@ -139,48 +139,18 @@ public class FileSystemReader{
     //fat: true when initializing fat, false otherwise
     private static byte[] getBytes(int offset, int amount, boolean fat) throws IOException{
 
-        //System.out.println("offset: " + offset);
-
         byte[] scrap = new byte[amount];
-        bis.mark(offset + amount + 1);
-        bis.skip(offset);
     
         if(fat){
-            // FAT = new int[amount/4]; 
-            // int byteCounter = 0;
-            // int index = 0;
-            // byte[] fatEntry;
-            // while(byteCounter < amount){
-                 
-            //     fatEntry = new byte[4];
-            //     FAT[index] = byteToInt(fatEntry);
-
-            //     if (byteCounter < 16){
-            //         System.out.println("fat[i]" + FAT[index]);
-            //         for (int i = 0; i < fatEntry.length; i++){
-            //             System.out.print(fatEntry[i]);
-            //         }
-            //         System.out.println();
-            //     }
-
-            //     byteCounter += 4;
-            //     index+=1;
-            // }
-
             fatBis.read(scrap, 0, amount);
         }else{
+            bis.mark(offset + amount + 1);
+            bis.skip(offset);
             bis.read(scrap, 0, amount);
+            bis.reset();
         }
-        bis.reset();
         return scrap;
     }
-
-    // private static void setFatBisPointer(int sector) throws IOException{
-
-    //     fatBis.close();
-    //     fatBis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
-    //     fatBis.skip(sector * 32);
-    // }
 
     /**
     Does not change the pointer
@@ -195,9 +165,6 @@ public class FileSystemReader{
         rootCluster = byteToInt(getBytes(44, 4, false));
 
         fatBis.skip(rsvdSecCnt * bytePerSec);
-        
-        //getBytes((rsvdSecCnt * bytePerSec), (Fatsz32 * bytePerSec), true);
-        //System.out.println(FAT);
     }
 
     /**
@@ -207,16 +174,11 @@ public class FileSystemReader{
      * @return
      */
     private static int byteToInt (byte[] array){
-        // String s = "";
-        // for(int i = array.length-1; i >= 0; i--){
-        //     s += String.format("%02X", array[i]);
-        // }
-        // return Integer.parseInt(s,16);
 
         int value = 0;
-         for (int i = array.length - 1; i >= 0; i--){
-             value = (value << 8) | (array[i] & 0xFF);
-         }
+        for (int i = array.length - 1; i >= 0; i--){
+        value = (value << 8) | (array[i] & 0xFF);
+        }
 
          return value;
     }
@@ -227,7 +189,6 @@ public class FileSystemReader{
         System.out.println("BPB_RsvdSecCnt is 0x" + String.format("%X", rsvdSecCnt) + ", " + rsvdSecCnt);
         System.out.println("BPB_NumFATS is 0x" + String.format("%X", numFats) + ", " + numFats);
         System.out.println("BPB_FATSz32 is 0x" + String.format("%X", Fatsz32) + ", " + Fatsz32);
-        //System.out.println("FAT:\n" + Arrays.toString(FAT));
     }
     
     public static void ls(String dirName) throws IOException{
@@ -267,7 +228,6 @@ public class FileSystemReader{
         pointer after running: must remain at the target entry pointer
         
         returns: the int value of the start cluster
-
      */
     private static int getStartCluster () throws IOException{
         
@@ -289,8 +249,6 @@ public class FileSystemReader{
             value = (value << 8) | (full[i] & 0xFF);
         }
         return value;
-
-        //return byteToInt(full);
     }
     
     private static String attrToString(int attr){
@@ -315,6 +273,7 @@ public class FileSystemReader{
         }
         return attributes;        
     }
+    
     public static void size (String fileName) throws IOException {
 
         if (setDataEntryPointer(fileName, false, false) == -1){
@@ -325,16 +284,14 @@ public class FileSystemReader{
         System.out.println("Size of " + fileName + " is " + size + " bytes");
         return;
     }
+    
     public static void cd (String dirName) throws IOException{
         if(setDataEntryPointer(dirName, false, true) == -1){
             System.out.println("Error: " + dirName + "is not a directory");
         }
     }
-    public static void read(String fileName, String offset, String numBytes){
-
-        
-
-    }
+    
+    public static void read(String fileName, String offset, String numBytes){}
 
 
         
@@ -348,9 +305,7 @@ public class FileSystemReader{
         System.out.println("\nsetDataEntryPointer");
         System.out.println("given path: " + path);
         
-        bis.close();
-        bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
-        bis.skip(dataStart);
+        setPointerCluster(rootCluster);
         
         //path = workingDir + / + path
         boolean absolute = path.charAt(0) == '/';
@@ -360,7 +315,6 @@ public class FileSystemReader{
         }
 
         System.out.println("absolute path(.): " + path);
-
 
         //Preproccess path string, handling periods
         //TODO When workingdir is in the root
@@ -392,7 +346,6 @@ public class FileSystemReader{
         System.out.println("absolutePath(!.): " + processedPath);
         levels = processedPath.split("/");
 
-        //int nextFATIndex = FAT[rootCluster];
         int nextFATIndex = rootCluster;
         System.out.println("nextFatIndex: " + nextFATIndex);
 
@@ -412,55 +365,17 @@ public class FileSystemReader{
                 }
                 return currentFATIndex;
             }
-            int startCluster = getStartCluster();
-            
-            System.out.println("\nsetDataEntryPointer");
-            System.out.println("Start cluster of next directory is: " + startCluster);
-            
+            int startCluster = getStartCluster();    
             setPointerCluster(startCluster);
-
-            //The number of the first cluster is also the index in teh fat to find the second cluster
             nextFATIndex = startCluster;
 
-            //At this point bis pointer should be pointing at entry for the target directory
-            //Need to read the entry to get the first cluster of the target directory
-
-
-
-            //!Just Implemented
-            /**
-             * Start at root
-             * call parsedirectory to find the entry for the target subdirectory or file
-             * once found, parsedirectory should return to setdataentrypointer
-             * if this is not the end of the path provided by the user
-             * (Meaning we intend to search further down the directory structure)
-             * Then parse the entry and set the pointer to the beginning of the subdirectory's first cluster
-             *      Works here, bc have access to the current cluster so we know how far to skip
-             *      (first cluster of next - current cluster) to get to the beginning of the next cluster
-             * At that point, the pointer will be pointing to the beginning of the current target directory in time for the
-             * next iteration of the loop
-             * When the next iterartion begins, the pointer is pointing at the beginning of teh directory
-             * where we now want to search for the new target
-             * However, if this is the overall target, the file or directory we are searching for,
-             * then we want to leave the pointer pointing at the beginnign of the entry
-             * this will allow the calling methods, like stat and size to access the information.
-             */
-            
-            
-
-
-
-
-            // if(startCluster == -1){
-            //     return startCluster;
-            // }
+            System.out.println("\nsetDataEntryPointer");
+            System.out.println("Start cluster of next directory is: " + startCluster);
         }
         //Only reaches here if only "/" was passed in 
         return nextFATIndex;
     }
-   
-    //Can read the entry of the start directory either in the beginning of parse directory or after calling parsedirectory in setdataentrypointer
-    
+       
     /**
     summary: sets pointer to the entry of a target file or directory
 
@@ -529,7 +444,6 @@ public class FileSystemReader{
                 return -1;
             }
 
-            //bis.skip((Math.abs(nextCluster - nextFATIndex) * bytePerSec * secPerClus));
             int nextCluster = getIntFromFat(nextFATIndex);
             int newAddress = setPointerCluster(nextCluster);
             
@@ -555,11 +469,12 @@ public class FileSystemReader{
 
         System.out.println("\nsetPointerCluster");
 
-        int clusterInBytes = cluster * bytePerSec * secPerClus;
+        int clusterInBytes = ((cluster - 2) * bytePerSec * secPerClus);
 
         bis.close();
         bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
         bis.skip(dataStart);
+
         bis.skip(clusterInBytes);
 
         System.out.println("byte address of pointer: " + (dataStart + clusterInBytes));
