@@ -38,6 +38,7 @@ public class FileSystemReader{
         setGlobals();
         //Should get to beginning of data section
         dataStart = (rsvdSecCnt * bytePerSec) + (bytePerSec * secPerClus * Fatsz32 * numFats);
+        System.out.println("dataStart: " + dataStart);
         bis.skip(dataStart);
         bis.mark(-1);
         
@@ -209,8 +210,7 @@ public class FileSystemReader{
             System.out.println("Error: file/directory does not exist");
             return;
         }
-
-        System.out.println("breakpoint");
+        
         
         int size = byteToInt(getBytes(28, 4, false, bis));
         String attributes = attrToString(byteToInt(getBytes(11, 1, false, bis)));
@@ -299,8 +299,6 @@ public class FileSystemReader{
         bis.close();
         bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
         bis.skip(dataStart);
-        System.out.println("dataStart: " + dataStart);
-        System.out.println("name: " + getDataEntryName());
         
         //path = workingDir + / + path
         boolean absolute = path.charAt(0) == '/';
@@ -309,15 +307,19 @@ public class FileSystemReader{
             path = (workingDir + (workingDir.charAt(workingDir.length() - 1) != '/' ? '/' : "") + path);
         }
 
+        System.out.println("path: " + path);
+
 
         //Preproccess path string, handling periods
         //TODO When workingdir is in the root
         String[] levels = path.split("/");
+        System.out.println("levels[].length: " + levels.length);
 
         String processedPath = "/";
         
-        for(int i = 1; i < levels.length; i++){ //starts at one because all paths start with '/'
+        for(int i = 1; i < levels.length; i++){ //starts at one because all paths start with '/', and therefore all levels[] have "" at the beginning
             String target = levels[i];
+            System.out.println("target at levels[i]: " + levels[i]);
             if(target.equals(".")){
                 continue;
             }
@@ -339,10 +341,10 @@ public class FileSystemReader{
         levels = processedPath.split("/");
 
         int nextFATIndex = rootCluster;
-        System.out.println("rootCluster: " + rootCluster);
 
-        for(int i = 1; i < levels.length; i++){
+        for(int i = 1; i < levels.length; i++){ //starts at one because all paths start with '/', and therefore all levels[] have "" at the beginning
 
+            System.out.println("calling parseDirectory on levels[i]: " + levels[i]);
             int currentFATIndex = parseDirectory(levels[i], nextFATIndex, ls);
             if(currentFATIndex == -1){
                 return currentFATIndex;
@@ -407,27 +409,34 @@ public class FileSystemReader{
     returns: cluster number in data section in which target was found; most recent FAT value
     */
     private static int parseDirectory(String target, int nextFATIndex, boolean ls) throws IOException{
-        
+
         // because method requires pointer be set to the entry of the directory to search, semantics are ok for getStartCluster
         
         //Bc we are modeling ls -a, which starts with those two directories by default
+        
+        System.out.println("In parseDirectory");
+        
         String accumulatedName = ". .. ";
         while(nextFATIndex != 0x0ffffff7){
             int byteCounter = 0;
                 while(byteCounter < (bytePerSec * secPerClus)){
+
+                    // System.out.println("byteCounter: " + byteCounter);
+                    // System.out.println("cluster size: " + bytePerSec * secPerClus);
                     bis.mark(13);
-                    int next = bis.read();
-                    if(next == 65){
-                        bis.skip(10);
-                        int attr = bis.read();
-                        if((attr & 0xF) == 0xF){
-                            bis.skip(20);
-                            byteCounter += 32;
-                        }else{
-                            bis.reset();
+
+                    int firstByte = byteToInt(getBytes(0, 1, false, bis));
+                    if(firstByte == 65){ //checks if entry starts with A
+                        
+                        byte[] attributeByte = getBytes(11, 1, false, bis);
+                        if ((attributeByte[0] & 0xF) == 0xF){
+                            bis.skip(32);
+                            byteCounter+= 32;
+                            continue;
                         }
                     }
                     String name = getDataEntryName();
+                    //System.out.println("name: " + name);
                     if (ls){
                         //reached last entry in directory so print
                         if (name.equals("0")){
@@ -446,15 +455,23 @@ public class FileSystemReader{
                             bis.skip(32);
                             byteCounter += 32;
                         }
-                    }  
+                    }
                 }
             if(nextFATIndex >= 0x0ffffff8 && nextFATIndex <= 0x0fffffff){
                 return -1;
             }
-            setFatBisPointer(nextFATIndex);
-            int nextCluster = byteToInt(getBytes(0, 4, false, fatBis));
-            //FAT[nextFATIndex];
-            bis.skip((Math.abs(nextCluster - nextFATIndex) * bytePerSec * secPerClus));
+            // setFatBisPointer(nextFATIndex);
+            // int nextCluster = byteToInt(getBytes(0, 4, false, fatBis));
+            int nextCluster = FAT[nextFATIndex];
+
+            bis.close();
+            bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
+            bis.skip(dataStart);
+            bis.skip(nextCluster * bytePerSec * secPerClus);
+
+            //bis.skip((Math.abs(nextCluster - nextFATIndex) * bytePerSec * secPerClus));
+            nextFATIndex = nextCluster;
+            System.out.println("\nnextFatIndex: " + nextFATIndex);
         }
         if(nextFATIndex == 0x0ffffff7){
             throw new IllegalStateException("Bad Cluster discovered");
