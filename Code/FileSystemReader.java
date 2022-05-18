@@ -1,4 +1,4 @@
-//package Code;
+package Code;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -29,11 +29,11 @@ public class FileSystemReader{
     static BufferedInputStream bis;
     
     public static void main(String[] args) throws FileNotFoundException, IOException {
-        if(args.length == 0){
-            throw new IllegalArgumentException("Please provide a file");
-        }
-        imgFile = args[0];
-        //imgFile = "Code/fat32.img";
+        // if(args.length == 0){
+        //     throw new IllegalArgumentException("Please provide a file");
+        // }
+        // imgFile = args[0];
+        imgFile = "Code/fat32.img";
         fatBis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
         bis = new BufferedInputStream(new FileInputStream(new File(imgFile)));
 
@@ -191,7 +191,6 @@ public class FileSystemReader{
             System.out.println("Error: " + dirName + " is not a directory");
             return;
         }
-        System.out.println("First cluster: " + getStartCluster());
         int cluster = (dirName.equals("/") ? 2 : getStartCluster());
         setPointerCluster(cluster);
         parseDirectory("", cluster, true);
@@ -287,7 +286,47 @@ public class FileSystemReader{
         workingDir = newWorking;
     }
     
-    public static void read(String fileName, String offset, String numBytes){}
+    public static void read(String fileName, String offset, String numBytes) throws IOException{
+        int off = 0;
+        int numberBytes = 0;
+        try{
+            off = Integer.parseInt(offset);
+            numberBytes = Integer.parseInt(numBytes);
+        }catch(NumberFormatException e){
+            System.out.println("Error: Please provide a numerical offset and number of bytes to be read" );
+            return;
+        }
+        if(off < 0){
+            System.out.println("Error: OFFSET must be a positive value");
+            return;
+        }
+        if(numberBytes <= 0){
+            System.out.println("Error: NUM_BYTES must be a greater than zero");
+            return;
+        }
+        
+        int cluster = setDataEntryPointer(fileName, false, false);
+        int attr = byteToInt(getBytes(11, 1, false));
+        if(cluster == -1 || (attr & 0x8) == 0x8){
+            System.out.println("Error: " + fileName + " is not a file");
+            return;
+        }
+        int size = byteToInt(getBytes(28, 4, false));
+        System.out.println("File size: " + size);
+        if(size <= (off + numberBytes)){
+            System.out.println("Error: attempt to read data outside of file bounds");
+            return;
+        }
+        int startCluster = getStartCluster();
+        setPointerCluster(startCluster);
+        byte[] readInfo = getBytes(off, numberBytes, false);
+        String result = "";
+        for(int i = 0; i < readInfo.length; i++){
+            result += (char)readInfo[i];
+        }
+        System.out.println(result);
+        return;
+    }
 
 
     /**
@@ -351,7 +390,6 @@ public class FileSystemReader{
         setPointerCluster(rootCluster);
         
         String processedPath = processPath(path);
-        System.out.println("Path: " + processedPath);
         String [] levels = processedPath.split("/");
 
         int nextFATIndex = rootCluster;
@@ -376,9 +414,6 @@ public class FileSystemReader{
 
             // System.out.println("\nsetDataEntryPointer");
             // System.out.println("Start cluster of next directory is: " + startCluster);
-        }
-        if(ls){
-            System.out.println(getDataEntryName());
         }
         return nextFATIndex;
     }
@@ -415,6 +450,12 @@ public class FileSystemReader{
                     //bis.mark(13);
 
                     int firstByte = byteToInt(getBytes(0, 1, false));
+                    int volID = byteToInt(getBytes(11, 1, false));
+                    if((volID & 0x8) == 0x8){
+                        bis.skip(32);
+                        byteCounter+= 32;
+                        continue;
+                    }
                     if(firstByte == 65){ //checks if entry starts with A
                         
                         byte[] attributeByte = getBytes(11, 1, false);
